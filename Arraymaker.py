@@ -20,10 +20,20 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
+https://gis-ops.com/qgis-3-use-interactive-mapping/
+
 """
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QCursor, QPixmap
+from PyQt5.QtWidgets import QApplication
+
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
+from qgis.core import QgsProject, QgsPoint,QgsPointXY, QgsFeature, Qgis
+
+import math
+from qgis.gui import QgsMapToolEmitPoint, QgsVertexMarker, QgsMessageBar
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -31,6 +41,97 @@ from .resources import *
 from .Arraymaker_dialog import ArraymakerDialog
 import os.path
 
+class PointTool(QgsMapToolEmitPoint):
+
+    def __init__(self, canvas):
+
+        QgsMapToolEmitPoint.__init__(self, canvas)
+        self.canvas = canvas
+        self.centre = True
+
+    canvasClicked = pyqtSignal('float')
+    def canvasReleaseEvent(self, event):
+        # Get the click and emit a transformed point
+        self.createarray(event.mapPoint())
+        #x=point_canvas_crs.x()
+        #y=point_canvas_crs.y()
+        #print(x,y)
+        
+    def makepoint(self,x,y,name):
+        pnt=QgsPoint(x,y)
+        f = QgsFeature()
+        f.setGeometry(pnt)
+        height, res = self.rlayer.dataProvider().sample(QgsPointXY(x,y),1)
+        print(res)
+        if math.isnan(height):
+            height=-9999
+            self.iface.messageBar().pushMessage("Arraybuilder - Warning", "Could not read value from raster layer", level=Qgis.Warning)
+        
+        self.lowest=min(height,self.lowest)
+        self.highest=max(height,self.highest)
+        f.setAttributes([None,height,self.version,name])
+        self.pvd.addFeatures([f])
+        print(name,round(x), round(y),round(height,1))
+        self.pvd.forceReload()   
+
+
+    def createarray(self,pointTool):
+        try:
+            x=pointTool.x()
+            y=pointTool.y()
+            print(x,y)
+            #QgsMessageBar.popWidget()
+            # First click gives centre point
+            if self.centre: 
+                self.lowest=10000
+                self.highest=-10000
+                #self.version+=1
+                self.dlg.SBVersion.setValue(self.version+1)
+                self.cx=x
+                self.cy=y
+                name=self.namebase+'A0'
+                self.centre=False
+                print("Centre point")
+                self.makepoint(x,y,name)
+                self.iface.messageBar().pushMessage("Arraybuilder", "Click in the direction of the first circle element", level=Qgis.Info,duration=5)
+            else:
+                dx=x-self.cx
+                dy=y-self.cy
+                if dy!=0:
+                    rads=math.atan(dx/dy)
+                else:
+                    rads=0
+                print("Direction first point, {} degrees".format(math.degrees(rads)))
+                distance=math.sqrt(dx**2+dy**2)
+                # Next time, will select centre element
+                self.centre=True
+                factor=self.radius/distance
+                relx=factor*dx
+                rely=factor*dy
+                x=self.cx+relx
+                y=self.cy+rely
+                name=self.namebase+'C0'
+                self.makepoint(x,y,name)
+                ddeg=self.ddeg
+                for i in range(1,self.npoints):
+                    tx=math.cos(ddeg)*relx-math.sin(ddeg)*rely
+                    ty=math.sin(ddeg)*relx+math.cos(ddeg)*rely
+                    relx=tx
+                    rely=ty
+                    name=self.namebase+'C{}'.format(i)
+                    self.makepoint(self.cx+relx,self.cy+rely,name)
+                print("Highest : {}".format(round(self.highest,1)))
+                print("Lowest  : {}".format(round(self.lowest,1)))
+                print("Range   : {}".format(round(self.highest-self.lowest,1)))
+                print("Version : {}".format(self.version))
+                self.canvasClicked.emit(round(self.highest-self.lowest,1))    
+        except AttributeError as e:
+            print(e)
+            print("Nothing so far")
+            pass
+        except ZeroDivisionError:
+            print("div zero - start over")
+            self.centre=True
 
 class Arraymaker:
     """QGIS Plugin Implementation."""
@@ -178,23 +279,60 @@ class Arraymaker:
                 self.tr(u'&Arraymaker'),
                 action)
             self.iface.removeToolBarIcon(action)
+    
+    
+
 
 
     def run(self):
         """Run method that performs all the real work"""
-
+        # TODO Add function to create layer
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
         if self.first_start == True:
             self.first_start = False
-            self.dlg = ArraymakerDialog()
+            self.dlg = ArraymakerDialog(parent=self.iface.mainWindow())
+            #TODO generally use drop downs
+            self.dlg.LEValuelayer.setText('6702_2_10m_z32')
+            self.dlg.LEWorklayer.setText('hnetpoints')
+            self.dlg.PBDefine.clicked.connect(self._on_map_click)
+            self.dlg.finished.connect(self.result)
 
         # show the dialog
+        self.last_maptool = self.iface.mapCanvas().mapTool()
+        self.dlg.open()
+         
+    def _on_map_click(self):
+        self.dlg.hide()
+        self.iface.messageBar().pushMessage("Arraybuilder", "Click to locate the center", level=Qgis.Info, duration=5)
+        self.point_tool = PointTool(self.iface.mapCanvas())
+        self.layername=self.dlg.LEWorklayer.text()
+        self.rastername=self.dlg.LEValuelayer.text()
+        # Todo - clean up initialization
+        self.point_tool.namebase=self.dlg.LENameBase.text()
+        self.point_tool.rlayer = QgsProject.instance().mapLayersByName(self.rastername)[0]
+        self.point_tool.radius=self.dlg.SBRadius.value()
+        self.point_tool.npoints=self.dlg.SBNpoints.value()
+        self.point_tool.ddeg=math.pi*2/self.point_tool.npoints
+        self.point_tool.dlg = self.dlg
+        self.point_tool.iface=self.iface
+        self.point_tool.version=self.dlg.SBVersion.value()
+        self.point_tool.centre=True # Starting up
+        self.workinglayer=QgsProject.instance().mapLayersByName(self.layername)[0]
+        self.point_tool.pvd=self.workinglayer.dataProvider()
+        print(self.layername,self.rastername) #,self.radius,self.npoint
+        self.iface.mapCanvas().setMapTool(self.point_tool)
+        self.point_tool.canvasClicked.connect(self.finishdefine)
+    
+    
+    def finishdefine(self,range):
+        self.point_tool.canvasClicked.disconnect()
+        self.iface.mapCanvas().setMapTool(self.last_maptool)
         self.dlg.show()
-        # Run the dialog event loop
-        result = self.dlg.exec_()
+        self.point_tool.centre=True
+    
+    def result(self,result):
         # See if OK was pressed
         if result:
-            # Do something useful here - delete the line containing pass and
-            # substitute with your code.
-            pass
+           pass
+                
