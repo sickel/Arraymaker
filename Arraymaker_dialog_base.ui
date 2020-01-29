@@ -135,6 +135,19 @@
     <string>Define</string>
    </property>
   </widget>
+  <widget class="QPushButton" name="PBNewLayer">
+   <property name="geometry">
+    <rect>
+     <x>180</x>
+     <y>260</y>
+     <width>75</width>
+     <height>23</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>New Layer</string>
+   </property>
+  </widget>
  </widget>
  <tabstops>
   <tabstop>LEWorklayer</tabstop>

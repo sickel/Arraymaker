@@ -23,14 +23,14 @@
 https://gis-ops.com/qgis-3-use-interactive-mapping/
 
 """
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import pyqtSignal, QVariant
 from PyQt5.QtGui import QCursor, QPixmap
 from PyQt5.QtWidgets import QApplication
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
-from qgis.core import QgsProject, QgsPoint,QgsPointXY, QgsFeature, Qgis
+from qgis.core import QgsProject, QgsPoint,QgsPointXY, QgsFeature, Qgis, QgsVectorLayer, QgsField, QgsGeometry
 
 import math
 from qgis.gui import QgsMapToolEmitPoint, QgsVertexMarker, QgsMessageBar
@@ -191,9 +191,9 @@ class Arraymaker:
         callback,
         enabled_flag=True,
         add_to_menu=True,
-        add_to_toolbar=True,
-        status_tip=None,
-        whats_this=None,
+        add_to_toolbar=False,
+        status_tip="To create a regular circle pattern e.g. for an array",
+        whats_this="To create a regular circle pattern e.g. for an array",
         parent=None):
         """Add a toolbar icon to the toolbar.
 
@@ -295,14 +295,32 @@ class Arraymaker:
             #TODO generally use drop downs
             self.dlg.LEValuelayer.setText('6702_2_10m_z32')
             self.dlg.LEWorklayer.setText('hnetpoints')
-            self.dlg.PBDefine.clicked.connect(self._on_map_click)
+            self.dlg.PBDefine.clicked.connect(self.startarray)
+            self.dlg.PBNewLayer.clicked.connect(self.createlayer)
             self.dlg.finished.connect(self.result)
 
         # show the dialog
         self.last_maptool = self.iface.mapCanvas().mapTool()
         self.dlg.open()
-         
-    def _on_map_click(self):
+     
+    def createlayer(self):
+                
+        # create layer
+        vl = QgsVectorLayer("Point", "temporary_array", "memory")
+        pr = vl.dataProvider()
+        crs=QgsProject.instance().crs()
+        vl.setCrs(crs)
+        # add fields
+        pr.addAttributes([QgsField("id",  QVariant.Int),QgsField("height", QVariant.Double),QgsField("version",  QVariant.Int),QgsField("name", QVariant.String)
+                            ]
+                            )
+        vl.updateFields() # tell the vector layer to fetch changes from the provider
+
+        # add a feature
+        vl.updateExtents()
+        QgsProject.instance().addMapLayer(vl)
+     
+    def startarray(self):
         self.dlg.hide()
         self.iface.messageBar().pushMessage("Arraybuilder", "Click to locate the center", level=Qgis.Info, duration=5)
         self.point_tool = PointTool(self.iface.mapCanvas())
