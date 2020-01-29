@@ -30,7 +30,7 @@ from PyQt5.QtWidgets import QApplication
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
-from qgis.core import QgsProject, QgsPoint,QgsPointXY, QgsFeature, Qgis, QgsVectorLayer, QgsField, QgsGeometry
+from qgis.core import QgsProject, QgsPoint,QgsPointXY, QgsFeature, Qgis, QgsVectorLayer, QgsField, QgsGeometry, QgsMapLayerProxyModel
 
 import math
 from qgis.gui import QgsMapToolEmitPoint, QgsVertexMarker, QgsMessageBar
@@ -53,16 +53,17 @@ class PointTool(QgsMapToolEmitPoint):
     def canvasReleaseEvent(self, event):
         # Get the click and emit a transformed point
         self.createarray(event.mapPoint())
-        #x=point_canvas_crs.x()
-        #y=point_canvas_crs.y()
-        #print(x,y)
+        
         
     def makepoint(self,x,y,name):
         pnt=QgsPoint(x,y)
         f = QgsFeature()
         f.setGeometry(pnt)
-        height, res = self.rlayer.dataProvider().sample(QgsPointXY(x,y),1)
-        print(res)
+        if self.rlayer==None:
+            height=-9999
+            res=False
+        else:
+            height, res = self.rlayer.dataProvider().sample(QgsPointXY(x,y),1)
         if math.isnan(height):
             height=-9999
             self.iface.messageBar().pushMessage("Arraybuilder - Warning", "Could not read value from raster layer", level=Qgis.Warning)
@@ -71,7 +72,8 @@ class PointTool(QgsMapToolEmitPoint):
         self.highest=max(height,self.highest)
         f.setAttributes([None,height,self.version,name])
         self.pvd.addFeatures([f])
-        print(name,round(x), round(y),round(height,1))
+        repstring="{} {} {} {}".format(name,round(x), round(y),round(height,1))
+        self.dlg.TEReport.append(repstring)
         self.pvd.forceReload()   
 
 
@@ -79,10 +81,9 @@ class PointTool(QgsMapToolEmitPoint):
         try:
             x=pointTool.x()
             y=pointTool.y()
-            print(x,y)
-            #QgsMessageBar.popWidget()
             # First click gives centre point
             if self.centre: 
+                self.dlg.TEReport.append("Version : {}".format(self.version))
                 self.lowest=10000
                 self.highest=-10000
                 #self.version+=1
@@ -91,7 +92,6 @@ class PointTool(QgsMapToolEmitPoint):
                 self.cy=y
                 name=self.namebase+'A0'
                 self.centre=False
-                print("Centre point")
                 self.makepoint(x,y,name)
                 self.iface.messageBar().pushMessage("Arraybuilder", "Click in the direction of the first circle element", level=Qgis.Info,duration=5)
             else:
@@ -101,7 +101,7 @@ class PointTool(QgsMapToolEmitPoint):
                     rads=math.atan(dx/dy)
                 else:
                     rads=0
-                print("Direction first point, {} degrees".format(math.degrees(rads)))
+                direction="Direction first point, {} degrees".format(math.degrees(rads))
                 distance=math.sqrt(dx**2+dy**2)
                 # Next time, will select centre element
                 self.centre=True
@@ -120,17 +120,17 @@ class PointTool(QgsMapToolEmitPoint):
                     rely=ty
                     name=self.namebase+'C{}'.format(i)
                     self.makepoint(self.cx+relx,self.cy+rely,name)
-                print("Highest : {}".format(round(self.highest,1)))
-                print("Lowest  : {}".format(round(self.lowest,1)))
-                print("Range   : {}".format(round(self.highest-self.lowest,1)))
-                print("Version : {}".format(self.version))
+                self.dlg.TEReport.append("Highest : {}".format(round(self.highest,1)))
+                self.dlg.TEReport.append("Lowest  : {}".format(round(self.lowest,1)))
+                self.dlg.TEReport.append("Range   : {}".format(round(self.highest-self.lowest,1)))
+                self.dlg.TEReport.append(direction)
                 self.canvasClicked.emit(round(self.highest-self.lowest,1))    
         except AttributeError as e:
             print(e)
             print("Nothing so far")
             pass
         except ZeroDivisionError:
-            print("div zero - start over")
+            self.iface.messageBar().pushMessage("Arraybuilder", "Division by zero. Start over", level=Qgis.Error,duration=5)
             self.centre=True
 
 class Arraymaker:
@@ -293,8 +293,10 @@ class Arraymaker:
             self.first_start = False
             self.dlg = ArraymakerDialog(parent=self.iface.mainWindow())
             #TODO generally use drop downs
-            self.dlg.LEValuelayer.setText('6702_2_10m_z32')
-            self.dlg.LEWorklayer.setText('hnetpoints')
+            #self.dlg.LEValuelayer.setText('6702_2_10m_z32')
+            #self.dlg.LEWorklayer.setText('hnetpoints')
+            self.dlg.MLWork.setFilters(QgsMapLayerProxyModel.PointLayer)
+            self.dlg.MLValue.setFilters(QgsMapLayerProxyModel.RasterLayer)
             self.dlg.PBDefine.clicked.connect(self.startarray)
             self.dlg.PBNewLayer.clicked.connect(self.createlayer)
             self.dlg.finished.connect(self.result)
@@ -324,11 +326,15 @@ class Arraymaker:
         self.dlg.hide()
         self.iface.messageBar().pushMessage("Arraybuilder", "Click to locate the center", level=Qgis.Info, duration=5)
         self.point_tool = PointTool(self.iface.mapCanvas())
-        self.layername=self.dlg.LEWorklayer.text()
-        self.rastername=self.dlg.LEValuelayer.text()
+        self.point_tool.rlayer = self.dlg.MLValue.currentLayer()
+        self.workinglayer=self.dlg.MLWork.currentLayer()
+        self.layername=self.workinglayer.name()
+        if self.point_tool.rlayer == None:
+            self.rastername=None
+        else:
+            self.rastername=self.point_tool.rlayer.name()
         # Todo - clean up initialization
         self.point_tool.namebase=self.dlg.LENameBase.text()
-        self.point_tool.rlayer = QgsProject.instance().mapLayersByName(self.rastername)[0]
         self.point_tool.radius=self.dlg.SBRadius.value()
         self.point_tool.npoints=self.dlg.SBNpoints.value()
         self.point_tool.ddeg=math.pi*2/self.point_tool.npoints
@@ -336,9 +342,13 @@ class Arraymaker:
         self.point_tool.iface=self.iface
         self.point_tool.version=self.dlg.SBVersion.value()
         self.point_tool.centre=True # Starting up
-        self.workinglayer=QgsProject.instance().mapLayersByName(self.layername)[0]
         self.point_tool.pvd=self.workinglayer.dataProvider()
-        print(self.layername,self.rastername) #,self.radius,self.npoint
+        self.dlg.TEReport.clear()
+        self.dlg.TEReport.append("Storing to  {}".format(self.layername))
+        if self.rastername==None:
+            self.dlg.TEReport.append("Not reading values")
+        else:
+            self.dlg.TEReport.append("Reading values from {}".format(self.rastername))
         self.iface.mapCanvas().setMapTool(self.point_tool)
         self.point_tool.canvasClicked.connect(self.finishdefine)
     
