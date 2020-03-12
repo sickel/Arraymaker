@@ -361,10 +361,11 @@ class Arraymaker:
         else:
             self.dlg.TEReport.append("Reading values from {}".format(self.rastername))
         self.iface.mapCanvas().setMapTool(self.point_tool)
+        message="Click to locate the center"
         if self.workinglayer.selectedFeatureCount()==1:
             message="Click in map to define array from selected point"
-        else:
-            message="Click to locate the center"
+        elif self.workinglayer.selectedFeatureCount()>1:
+            message="Select one point to use as senter. "+message
         self.iface.messageBar().pushMessage("Arraybuilder",message , level=Qgis.Info, duration=5)
         self.point_tool.canvasClicked.connect(self.finishdefine)
     
