@@ -68,7 +68,7 @@
     </rect>
    </property>
    <property name="currentIndex">
-    <number>0</number>
+    <number>1</number>
    </property>
    <widget class="QWidget" name="tabSettings">
     <attribute name="title">
@@ -176,10 +176,10 @@
     <widget class="QTextEdit" name="TEReport">
      <property name="geometry">
       <rect>
-       <x>10</x>
+       <x>0</x>
        <y>0</y>
-       <width>371</width>
-       <height>221</height>
+       <width>391</width>
+       <height>231</height>
       </rect>
      </property>
      <property name="readOnly">

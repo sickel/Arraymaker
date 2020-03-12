@@ -88,11 +88,15 @@ class PointTool(QgsMapToolEmitPoint):
                 self.highest=-10000
                 #self.version+=1
                 self.dlg.SBVersion.setValue(self.version+1)
+                name=self.namebase+'A0'
+                if self.workinglayer.selectedFeatureCount()==1:
+                    x=self.workinglayer.selectedFeatures()[0].geometry().asPoint()[0]
+                    y=self.workinglayer.selectedFeatures()[0].geometry().asPoint()[1]
+                else:
+                    self.makepoint(x,y,name)
                 self.cx=x
                 self.cy=y
-                name=self.namebase+'A0'
                 self.centre=False
-                self.makepoint(x,y,name)
                 self.iface.messageBar().pushMessage("Arraybuilder", "Click in the direction of the first circle element", level=Qgis.Info,duration=5)
             else:
                 dx=x-self.cx
@@ -101,7 +105,7 @@ class PointTool(QgsMapToolEmitPoint):
                     rads=math.atan(dx/dy)
                 else:
                     rads=0
-                direction="Direction first point, {} degrees".format(math.degrees(rads))
+                direction="Direction first point, {} degrees".format(round(math.degrees(rads),1))
                 distance=math.sqrt(dx**2+dy**2)
                 # Next time, will select centre element
                 self.centre=True
@@ -130,12 +134,13 @@ class PointTool(QgsMapToolEmitPoint):
             print("Nothing so far")
             pass
         except ZeroDivisionError:
-            self.iface.messageBar().pushMessage("Arraybuilder", "Division by zero. Start over", level=Qgis.Error,duration=5)
+            self.iface.messageBar().pushMessage("Arraybuilder", "Division by zero. Start over", level=Qgis.Critical,duration=5)
             self.centre=True
 
 class Arraymaker:
     """QGIS Plugin Implementation."""
-
+    # TODO: Set up to type in centre coordinates and direction
+    
     def __init__(self, iface):
         """Constructor.
 
@@ -286,15 +291,11 @@ class Arraymaker:
 
     def run(self):
         """Run method that performs all the real work"""
-        # TODO Add function to create layer
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
         if self.first_start == True:
             self.first_start = False
             self.dlg = ArraymakerDialog(parent=self.iface.mainWindow())
-            #TODO generally use drop downs
-            #self.dlg.LEValuelayer.setText('6702_2_10m_z32')
-            #self.dlg.LEWorklayer.setText('hnetpoints')
             self.dlg.MLWork.setFilters(QgsMapLayerProxyModel.PointLayer)
             self.dlg.MLValue.setFilters(QgsMapLayerProxyModel.RasterLayer)
             self.dlg.PBDefine.clicked.connect(self.startarray)
@@ -310,24 +311,26 @@ class Arraymaker:
         # create layer
         vl = QgsVectorLayer("Point", "temporary_array", "memory")
         pr = vl.dataProvider()
+        # Set projection for layer as the project projection
         crs=QgsProject.instance().crs()
         vl.setCrs(crs)
         # add fields
-        pr.addAttributes([QgsField("id",  QVariant.Int),QgsField("height", QVariant.Double),QgsField("version",  QVariant.Int),QgsField("name", QVariant.String)
-                            ]
-                            )
+        pr.addAttributes([
+            QgsField("id",  QVariant.Int),
+            QgsField("height",  QVariant.Double),
+            QgsField("version", QVariant.Int),
+            QgsField("name",    QVariant.String)
+            ])
         vl.updateFields() # tell the vector layer to fetch changes from the provider
-
-        # add a feature
-        vl.updateExtents()
         QgsProject.instance().addMapLayer(vl)
+        self.dlg.MLWork.setLayer(vl)
      
     def startarray(self):
         self.dlg.hide()
-        self.iface.messageBar().pushMessage("Arraybuilder", "Click to locate the center", level=Qgis.Info, duration=5)
         self.point_tool = PointTool(self.iface.mapCanvas())
         self.point_tool.rlayer = self.dlg.MLValue.currentLayer()
         self.workinglayer=self.dlg.MLWork.currentLayer()
+        self.point_tool.workinglayer=self.workinglayer
         self.layername=self.workinglayer.name()
         if self.point_tool.rlayer == None:
             self.rastername=None
@@ -350,16 +353,23 @@ class Arraymaker:
         else:
             self.dlg.TEReport.append("Reading values from {}".format(self.rastername))
         self.iface.mapCanvas().setMapTool(self.point_tool)
+        if self.workinglayer.selectedFeatureCount()==1:
+            message="Click in map to define array from selected point"
+        else:
+            message="Click to locate the center"
+        self.iface.messageBar().pushMessage("Arraybuilder",message , level=Qgis.Info, duration=5)
         self.point_tool.canvasClicked.connect(self.finishdefine)
     
     
     def finishdefine(self,range):
         self.point_tool.canvasClicked.disconnect()
+        self.workinglayer.updateExtents()
         self.iface.mapCanvas().setMapTool(self.last_maptool)
         self.dlg.show()
         self.point_tool.centre=True
     
     def result(self,result):
+        # Do I need to do this? 
         # See if OK was pressed
         if result:
            pass
