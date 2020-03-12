@@ -71,10 +71,11 @@ class PointTool(QgsMapToolEmitPoint):
         self.lowest=min(height,self.lowest)
         self.highest=max(height,self.highest)
         f.setAttributes([None,height,self.version,name])
-        self.pvd.addFeatures([f])
+        f=self.pvd.addFeatures([f])
+        self.pvd.forceReload()
         repstring="{} {} {} {}".format(name,round(x), round(y),round(height,1))
         self.dlg.TEReport.append(repstring)
-        self.pvd.forceReload()   
+        return(f[1][0].id())
 
 
     def createarray(self,pointTool):
@@ -88,16 +89,19 @@ class PointTool(QgsMapToolEmitPoint):
                 self.highest=-10000
                 #self.version+=1
                 self.dlg.SBVersion.setValue(self.version+1)
-                name=self.namebase+'A0'
+                if len(self.namebase)>1:
+                    name=self.namebase[:-1]+'A0'
+                else:
+                    name=self.namebase+'A0'
                 if self.workinglayer.selectedFeatureCount()==1:
                     x=self.workinglayer.selectedFeatures()[0].geometry().asPoint()[0]
                     y=self.workinglayer.selectedFeatures()[0].geometry().asPoint()[1]
                 else:
-                    self.makepoint(x,y,name)
+                    self.ids.append(self.makepoint(x,y,name))
                 self.cx=x
                 self.cy=y
                 self.centre=False
-                self.iface.messageBar().pushMessage("Arraybuilder", "Click in the direction of the first circle element", level=Qgis.Info,duration=5)
+                self.iface.messageBar().pushMessage("Arraybuilder", "Click in the direction of the first circle element", level=Qgis.Info,duration=3)
             else:
                 dx=x-self.cx
                 dy=y-self.cy
@@ -114,16 +118,19 @@ class PointTool(QgsMapToolEmitPoint):
                 rely=factor*dy
                 x=self.cx+relx
                 y=self.cy+rely
-                name=self.namebase+'C0'
-                self.makepoint(x,y,name)
+                name=self.namebase+'0'
+                self.ids.append(self.makepoint(x,y,name))
                 ddeg=self.ddeg
                 for i in range(1,self.npoints):
                     tx=math.cos(ddeg)*relx-math.sin(ddeg)*rely
                     ty=math.sin(ddeg)*relx+math.cos(ddeg)*rely
                     relx=tx
                     rely=ty
-                    name=self.namebase+'C{}'.format(i)
-                    self.makepoint(self.cx+relx,self.cy+rely,name)
+                    name=self.namebase+'{}'.format(i)
+                    self.ids.append(self.makepoint(self.cx+relx,self.cy+rely,name))
+                print(self.ids)
+                self.workinglayer.removeSelection()
+                self.workinglayer.select(self.ids)
                 self.dlg.TEReport.append("Highest : {}".format(round(self.highest,1)))
                 self.dlg.TEReport.append("Lowest  : {}".format(round(self.lowest,1)))
                 self.dlg.TEReport.append("Range   : {}".format(round(self.highest-self.lowest,1)))
@@ -346,6 +353,7 @@ class Arraymaker:
         self.point_tool.version=self.dlg.SBVersion.value()
         self.point_tool.centre=True # Starting up
         self.point_tool.pvd=self.workinglayer.dataProvider()
+        self.point_tool.ids=[]
         self.dlg.TEReport.clear()
         self.dlg.TEReport.append("Storing to  {}".format(self.layername))
         if self.rastername==None:
