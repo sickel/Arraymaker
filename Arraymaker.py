@@ -337,6 +337,9 @@ class Arraymaker:
         self.point_tool = PointTool(self.iface.mapCanvas())
         self.point_tool.rlayer = self.dlg.MLValue.currentLayer()
         self.workinglayer=self.dlg.MLWork.currentLayer()
+        if self.workinglayer==None:
+             self.iface.messageBar().pushMessage("Arraybuilder", "Select a (New) work layer", level=Qgis.Critical,duration=5)
+             return(False)
         self.point_tool.workinglayer=self.workinglayer
         self.layername=self.workinglayer.name()
         if self.point_tool.rlayer == None:
