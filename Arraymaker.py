@@ -50,9 +50,13 @@ class PointTool(QgsMapToolEmitPoint):
         self.centre = True
 
     canvasClicked = pyqtSignal('float')
+    
     def canvasReleaseEvent(self, event):
         # Get the click and emit a transformed point
-        self.createarray(event.mapPoint())
+        if self.dlg.RBpoint.isChecked():
+            self.createarray(event.mapPoint())
+        elif self.dlg.RBspiral.isChecked() or self.dlg.RBspiralLog.isChecked:
+            self.createspiral(event.mapPoint())
         
         
     def makepoint(self,x,y,name):
@@ -67,7 +71,8 @@ class PointTool(QgsMapToolEmitPoint):
         if math.isnan(height):
             height=-9999
             self.iface.messageBar().pushMessage("Arraybuilder - Warning", "Could not read value from raster layer", level=Qgis.Warning)
-        
+            self.rlayer=None
+            res=False
         self.lowest=min(height,self.lowest)
         self.highest=max(height,self.highest)
         f.setAttributes([None,height,self.version,name])
@@ -143,6 +148,90 @@ class PointTool(QgsMapToolEmitPoint):
         except ZeroDivisionError:
             self.iface.messageBar().pushMessage("Arraybuilder", "Division by zero. Start over", level=Qgis.Critical,duration=5)
             self.centre=True
+
+
+    def createspiral(self,pointTool):
+        startx=pointTool.x()
+        starty=pointTool.y()
+        if self.dlg.RBspiralLog.isChecked():
+            coords=self.logspiralarm()
+        elif self.dlg.RBspiral.isChecked():
+            coords=self.linspiralarm()
+        lastpnt=coords[-1]
+        for arm in range(0,self.npoints):
+            newcoords=[]
+            alpha = arm*2*math.pi/self.npoints
+            for point in coords:
+                E = point[0]-lastpnt[0]
+                N = point[1]-lastpnt[1]
+                x = math.sin(alpha) * E + math.cos(alpha)*N+startx;
+                y = math.cos(alpha) * E - math.sin(alpha)*N+starty;
+                newcoords.append(QgsPointXY(x,y))
+            seg=QgsFeature()
+            seg.setAttributes([None,None,self.version,self.namebase])
+            seg.setGeometry(QgsGeometry.fromPolylineXY(newcoords))
+            self.pvd.addFeatures( [ seg ] )
+        # update extent of the layer (not necessary)
+        self.pvd.forceReload()
+        self.workinglayer.updateExtents()
+        
+    def linspiralarm(self):
+        coords = []
+        coils  = 1.1
+        chord  = 1
+        rotation = 0
+        rotdir = -1
+        maxR   = 1500
+        thetaMax = coils * 2 * math.pi # // value of theta corresponding to end of last coil
+        awayStep = maxR / thetaMax # // How far to step away from center for each side.
+        
+        # // For every side, step around and away from center.
+        # // start at the angle corresponding to a distance of chord
+        # // away from centre.
+        
+        theta = (chord / awayStep)
+        while theta <= thetaMax:
+            away   = awayStep * theta; # How far away from center
+            around = theta + rotation; # How far around the center
+            E=math.cos(around*rotdir)*away
+            N=math.sin(around*rotdir)*away
+            theta = theta + chord/away
+            coords.append([E,N])
+        coords.pop(0) # For some reason it ends up with a long jump from 0 to 1
+        return(coords)
+        
+        
+    def logspiralarm(self):
+        coords = []
+        a = 1.1
+        b = 0.5
+        coils  = 1.1
+        chord  = 1
+        rotation = 0
+        rotdir = -1
+        maxR   = 1500
+        dX = 5
+        stop = 20001
+        Espan = [10^19,-10^19]
+        Nspan = Espan
+        for s in range(dX,stop,dX) :
+            theta = math.log(s*b/(a*math.sqrt(1-b**2)))/b
+            E = a * math.cos(theta * rotdir)*math.exp(b*theta)
+            N = a * math.sin(theta * rotdir)*math.exp(b*theta)
+            Espan[0] = min(E,Espan[0])
+            Espan[1] = max(E,Espan[1])
+            Nspan[0] = min(N,Nspan[0])
+            Nspan[1] = max(N,Nspan[1])
+            r=math.sqrt((Espan[1]-Espan[0])**2+(Nspan[1]-Nspan[0])**2)
+            if r > maxR:
+                #print(Espan)
+                #print(Nspan)
+                break
+            coords.append([E,N])
+        return(coords)
+    
+
+
 
 class Arraymaker:
     """QGIS Plugin Implementation."""
@@ -308,15 +397,29 @@ class Arraymaker:
             self.dlg.PBDefine.clicked.connect(self.startarray)
             self.dlg.PBNewLayer.clicked.connect(self.createlayer)
             self.dlg.finished.connect(self.result)
-
+            self.dlg.RBpoint.clicked.connect(self.pointlayers)
+            self.dlg.RBline.clicked.connect(self.linelayers)
+            self.dlg.RBspiral.clicked.connect(self.linelayers)
+            self.dlg.RBspiralLog.clicked.connect(self.linelayers)
         # show the dialog
         self.last_maptool = self.iface.mapCanvas().mapTool()
         self.dlg.open()
      
+    def pointlayers(self):
+       self.dlg.MLWork.setFilters(QgsMapLayerProxyModel.PointLayer)
+            
+        
+    def linelayers(self):
+        self.dlg.MLWork.setFilters(QgsMapLayerProxyModel.LineLayer)
+            
+    
     def createlayer(self):
                 
         # create layer
-        vl = QgsVectorLayer("Point", "temporary_array", "memory")
+        if self.dlg.RBpoint.isChecked():
+            vl = QgsVectorLayer("Point", "temporary_array", "memory")
+        else:
+            vl = QgsVectorLayer("LineString", "temporary_array", "memory")
         pr = vl.dataProvider()
         # Set projection for layer as the project projection
         crs=QgsProject.instance().crs()
