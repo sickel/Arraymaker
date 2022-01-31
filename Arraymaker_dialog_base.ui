@@ -278,7 +278,7 @@
         <item>
          <widget class="QSpinBox" name="SBEast">
           <property name="buttonSymbols">
-           <enum>QAbstractSpinBox::NoButtons</enum>
+           <enum>QAbstractSpinBox::PlusMinus</enum>
           </property>
           <property name="minimum">
            <number>-10000000</number>
@@ -298,7 +298,10 @@
         <item>
          <widget class="QSpinBox" name="SBNorth">
           <property name="buttonSymbols">
-           <enum>QAbstractSpinBox::NoButtons</enum>
+           <enum>QAbstractSpinBox::PlusMinus</enum>
+          </property>
+          <property name="suffix">
+           <string/>
           </property>
           <property name="minimum">
            <number>0</number>
@@ -322,17 +325,46 @@
         <property name="text">
          <string>Click in map for center</string>
         </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
        </widget>
       </item>
       <item row="0" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout_3">
         <item>
          <widget class="QSpinBox" name="SBRotation">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="minimum">
            <number>-180</number>
           </property>
           <property name="maximum">
            <number>360</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_2">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="CBccw">
+          <property name="text">
+           <string>Clockwise spiral</string>
           </property>
          </widget>
         </item>

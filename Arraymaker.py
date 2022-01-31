@@ -24,7 +24,7 @@ https://gis-ops.com/qgis-3-use-interactive-mapping/
 
 """
 from PyQt5.QtCore import pyqtSignal, QVariant
-from PyQt5.QtGui import QCursor, QPixmap
+from PyQt5.QtGui import QCursor, QPixmap, QColor
 from PyQt5.QtWidgets import QApplication
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
@@ -86,8 +86,16 @@ class PointTool(QgsMapToolEmitPoint):
 
     def createarray(self,pointTool):
         try:
-            x=pointTool.x()
-            y=pointTool.y()
+            if self.dlg.CBClickForCenter.isChecked() or not self.centre:
+                x=pointTool.x()
+                y=pointTool.y()
+                if self.centre:
+                    self.dlg.SBEast.setValue(x)
+                    self.dlg.SBNorth.setValue(y)
+            else:
+                print("Bruker innskrevet punkt")
+                x=self.dlg.SBEast.value()
+                y=self.dlg.SBNorth.value()
             # First click gives centre point
             if self.centre: 
                 self.dlg.TEReport.append("Version : {}".format(self.version))
@@ -149,11 +157,18 @@ class PointTool(QgsMapToolEmitPoint):
         except ZeroDivisionError:
             self.iface.messageBar().pushMessage("Arraybuilder", "Division by zero. Start over", level=Qgis.Critical,duration=5)
             self.centre=True
-
+        self.cleanupmarkers()
 
     def createspiral(self,pointTool):
-        startx=pointTool.x()
-        starty=pointTool.y()
+        if self.dlg.CBClickForCenter.isChecked():
+            startx=pointTool.x()
+            starty=pointTool.y()
+            self.dlg.SBEast.setValue(startx)
+            self.dlg.SBNorth.setValue(starty)
+        else:
+            print("Bruker innskrevet punkt")
+            startx=self.dlg.SBEast.value()
+            starty=self.dlg.SBNorth.value()
         if self.dlg.RBspiralLog.isChecked():
             coords=self.logspiralarm()
         elif self.dlg.RBspiral.isChecked():
@@ -175,12 +190,20 @@ class PointTool(QgsMapToolEmitPoint):
         # update extent of the layer (not necessary)
         self.pvd.forceReload()
         self.workinglayer.updateExtents()
+        self.cleanupmarkers()
+    
+    def cleanupmarkers(self):
+        vertex_items = [ i for i in self.iface.mapCanvas().scene().items() if issubclass(type(i), QgsVertexMarker)]
+        for v in vertex_items:
+            if v.data(1)=='Startmarker':
+                self.iface.mapCanvas().scene().removeItem(v)
         
     def linspiralarm(self):
         coords = []
         coils  = 1.1
         chord  = 1
-        rotdir = -1
+        rotdir = 1 if self.dlg.CBccw.isChecked() else -1
+        
         rotation = self.dlg.SBRotation.value()
 
         maxR   = self.radius/8*5 # The radius is the max radius of the spiral. I want the longest distance 
@@ -209,8 +232,8 @@ class PointTool(QgsMapToolEmitPoint):
         b = 0.5
         coils  = 1.1
         chord  = 1
-        rotation = 0
-        rotdir = -1
+        rotation = self.dlg.SBRotation.value()
+        rotdir = 1 if self.dlg.CBccw.isChecked() else -1
         maxR   = self.radius * 50 / 28 # Want to set longest distance
         dX = 5
         stop = 20001
@@ -404,6 +427,16 @@ class Arraymaker:
             self.dlg.RBspiral.clicked.connect(self.linelayers)
             self.dlg.RBspiralLog.clicked.connect(self.linelayers)
         # show the dialog
+        extent = self.iface.mapCanvas().extent() 
+        center = self.iface.mapCanvas().center()
+        print(extent)
+        print(center)
+        self.dlg.SBNorth.setValue(int(center.y()+0.5))
+        self.dlg.SBNorth.setMaximum(int(extent.yMaximum()))
+        self.dlg.SBNorth.setMinimum(int(extent.yMinimum()))
+        self.dlg.SBEast.setValue(int(center.x()+0.5))
+        self.dlg.SBEast.setMaximum(int(extent.xMaximum()))
+        self.dlg.SBEast.setMinimum(int(extent.xMinimum()))
         self.last_maptool = self.iface.mapCanvas().mapTool()
         self.dlg.open()
      
@@ -469,11 +502,23 @@ class Arraymaker:
         else:
             self.dlg.TEReport.append("Reading values from {}".format(self.rastername))
         self.iface.mapCanvas().setMapTool(self.point_tool)
-        message="Click to locate the center"
-        if self.workinglayer.selectedFeatureCount()==1:
-            message="Click in map to define array from selected point"
-        elif self.workinglayer.selectedFeatureCount()>1:
-            message="Select one point to use as senter. "+message
+        if self.dlg.CBClickForCenter.isChecked():
+            message="Click to locate the center"
+            if self.workinglayer.selectedFeatureCount()==1:
+                message="Click in map to define array from selected point"
+            elif self.workinglayer.selectedFeatureCount()>1:
+                message="Select one point to use as senter. "+message
+        else:
+            marker=QgsVertexMarker(self.iface.mapCanvas())
+            message="Click in map to confirm centre point"
+            xy=QgsPointXY(self.dlg.SBEast.value(),self.dlg.SBNorth.value())
+            print(xy)
+            marker.setCenter(xy)
+            marker.setColor(QColor(255,0, 0))
+            marker.setIconSize(15)
+            marker.setIconType(QgsVertexMarker.ICON_X)
+            marker.setPenWidth(3)
+            marker.setData(1,"Startmarker")
         self.iface.messageBar().pushMessage("Arraybuilder",message , level=Qgis.Info, duration=5)
         self.point_tool.canvasClicked.connect(self.finishdefine)
     
