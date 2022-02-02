@@ -68,7 +68,7 @@
     </rect>
    </property>
    <property name="currentIndex">
-    <number>0</number>
+    <number>2</number>
    </property>
    <widget class="QWidget" name="tabSettings">
     <attribute name="title">
@@ -103,7 +103,7 @@
       </item>
       <item row="1" column="1">
        <widget class="QgsMapLayerComboBox" name="MLValue">
-        <property name="allowEmptyLayer" stdset="0">
+        <property name="allowEmptyLayer">
          <bool>true</bool>
         </property>
        </widget>
@@ -410,7 +410,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QDoubleSpinBox" name="SPbVal">
+         <widget class="QDoubleSpinBox" name="SBbVal">
           <property name="maximum">
            <double>2.000000000000000</double>
           </property>

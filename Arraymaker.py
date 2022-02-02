@@ -239,8 +239,9 @@ class PointTool(QgsMapToolEmitPoint):
         Nspan = Espan
         for s in range(dX,stop,dX) :
             theta = math.log(s*b/(a*math.sqrt(1-b**2)))/b
-            E = a * math.cos(theta * rotdir)*math.exp(b*theta)
-            N = a * math.sin(theta * rotdir)*math.exp(b*theta)
+            around=theta+rotation
+            E = a * math.cos(around * rotdir)*math.exp(b*theta)
+            N = a * math.sin(around * rotdir)*math.exp(b*theta)
             Espan[0] = min(E,Espan[0])
             Espan[1] = max(E,Espan[1])
             Nspan[0] = min(N,Nspan[0])
