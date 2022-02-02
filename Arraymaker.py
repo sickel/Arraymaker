@@ -203,9 +203,7 @@ class PointTool(QgsMapToolEmitPoint):
         coils  = 1.1
         chord  = 1
         rotdir = 1 if self.dlg.CBccw.isChecked() else -1
-        
         rotation = self.dlg.SBRotation.value()
-
         maxR   = self.radius/8*5 # The radius is the max radius of the spiral. I want the longest distance 
         thetaMax = coils * 2 * math.pi # // value of theta corresponding to end of last coil
         awayStep = maxR / thetaMax # // How far to step away from center for each side.
@@ -228,8 +226,8 @@ class PointTool(QgsMapToolEmitPoint):
         
     def logspiralarm(self):
         coords = []
-        a = 1.1
-        b = 0.5
+        a = self.dlg.SBaVal.value() # default 1.1
+        b = self.dlg.SBbVal.value() # Default 0.5
         coils  = 1.1
         chord  = 1
         rotation = self.dlg.SBRotation.value()
