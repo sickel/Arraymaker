@@ -173,16 +173,10 @@ class PointTool(QgsMapToolEmitPoint):
             coords=self.logspiralarm()
         elif self.dlg.RBspiral.isChecked():
             coords=self.linspiralarm()
-        lastpnt=coords[-1]
+        origin=coords[-1]
         for arm in range(0,self.npoints):
-            newcoords=[]
             alpha = arm*2*math.pi/self.npoints
-            for point in coords:
-                E = point[0]-lastpnt[0]
-                N = point[1]-lastpnt[1]
-                x = math.sin(alpha) * E + math.cos(alpha)*N+startx;
-                y = math.cos(alpha) * E - math.sin(alpha)*N+starty;
-                newcoords.append(QgsPointXY(x,y))
+            newcoords=self.rotatecoords(coords,origin,alpha,[startx,starty])
             seg=QgsFeature()
             seg.setAttributes([None,None,self.version,self.namebase])
             seg.setGeometry(QgsGeometry.fromPolylineXY(newcoords))
@@ -192,12 +186,30 @@ class PointTool(QgsMapToolEmitPoint):
         self.workinglayer.updateExtents()
         self.cleanupmarkers()
     
+    def rotatecoords(self,coords,origin,alpha,startpoint=[0,0],asQgspoint=True):
+        newpoints=[]
+        for point in coords:
+            E = point[0]-origin[0]
+            N = point[1]-origin[1]
+            x = math.sin(alpha) * E + math.cos(alpha)*N+startpoint[0];
+            y = math.cos(alpha) * E - math.sin(alpha)*N+startpoint[1];
+            if asQgspoint:
+                newpoint=QgsPointXY(x,y)
+            else:
+                newpoint=[x,y]
+            newpoints.append(newpoint)
+        return(newpoints)
+    
     def cleanupmarkers(self):
         vertex_items = [ i for i in self.iface.mapCanvas().scene().items() if issubclass(type(i), QgsVertexMarker)]
         for v in vertex_items:
             if v.data(1)=='Startmarker':
                 self.iface.mapCanvas().scene().removeItem(v)
-        
+    
+    def circlearm(self):
+        coords=[]
+
+    
     def linspiralarm(self):
         coords = []
         coils  = 1.1
