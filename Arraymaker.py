@@ -56,9 +56,9 @@ class PointTool(QgsMapToolEmitPoint):
         # Get the click and emit a transformed point
         if self.dlg.RBpoint.isChecked():
             self.createarray(event.mapPoint())
-        elif self.dlg.RBspiral.isChecked() or self.dlg.RBspiralLog.isChecked:
+        elif self.dlg.RBspiral.isChecked() or self.dlg.RBspiralLog.isChecked or self.dlg.RBcircle.isChecked():
             self.createspiral(event.mapPoint())
-        
+
         
     def makepoint(self,x,y,name):
         pnt=QgsPoint(x,y)
@@ -160,6 +160,7 @@ class PointTool(QgsMapToolEmitPoint):
         self.cleanupmarkers()
 
     def createspiral(self,pointTool):
+        """ Creates anconfiguration of spiral arms or circle arc arms """
         if self.dlg.CBClickForCenter.isChecked():
             startx=pointTool.x()
             starty=pointTool.y()
@@ -173,6 +174,8 @@ class PointTool(QgsMapToolEmitPoint):
             coords=self.logspiralarm()
         elif self.dlg.RBspiral.isChecked():
             coords=self.linspiralarm()
+        elif self.dlg.RBcircle.isChecked():
+            coords = self.circlearm()
         origin=coords[-1]
         for arm in range(0,self.npoints):
             alpha = arm*2*math.pi/self.npoints
@@ -207,8 +210,22 @@ class PointTool(QgsMapToolEmitPoint):
                 self.iface.mapCanvas().scene().removeItem(v)
     
     def circlearm(self):
+        rotdir = -1 if self.dlg.CBccw.isChecked() else 1
         coords=[]
-
+        length=self.radius
+        degrees=self.dlg.SBdegrees.value()
+        rads=degrees/180*math.pi
+        circrad=length*math.sin((math.pi-rads)/2)/math.sin(rads)
+        # The radius of the circle that has a secant of length lenght over the angle degrees        
+        nsteps=100 # How many points for the arc
+        step=rads/nsteps
+        rad=0
+        while rad<=rads:
+            E=math.cos(rad)*circrad*rotdir
+            N=math.sin(rad)*circrad
+            coords.append([E,N])
+            rad+=step
+        return(coords)
     
     def linspiralarm(self):
         coords = []
@@ -435,6 +452,7 @@ class Arraymaker:
             self.dlg.finished.connect(self.result)
             self.dlg.RBpoint.clicked.connect(self.pointlayers)
             self.dlg.RBline.clicked.connect(self.linelayers)
+            self.dlg.RBcircle.clicked.connect(self.linelayers)
             self.dlg.RBspiral.clicked.connect(self.linelayers)
             self.dlg.RBspiralLog.clicked.connect(self.linelayers)
         # show the dialog
@@ -508,7 +526,7 @@ class Arraymaker:
         self.point_tool.ids=[]
         self.dlg.TEReport.clear()
         self.dlg.TEReport.append("Storing to  {}".format(self.layername))
-        if self.rastername==None:
+        if not self.dlg.RBline.isChecked() or self.rastername==None:
             self.dlg.TEReport.append("Not reading values")
         else:
             self.dlg.TEReport.append("Reading values from {}".format(self.rastername))
