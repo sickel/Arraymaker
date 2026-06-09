@@ -30,7 +30,8 @@ from qgis.PyQt.QtWidgets import QApplication
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
-from qgis.core import QgsProject, QgsPoint,QgsPointXY, QgsFeature, Qgis, QgsVectorLayer, QgsField, QgsGeometry, QgsMapLayerProxyModel
+from qgis.core import QgsProject, QgsPoint, QgsPointXY, QgsFeature, Qgis, QgsVectorLayer, QgsField, \
+        QgsGeometry, QgsMapLayerProxyModel
 from datetime import datetime
 import math
 from qgis.gui import QgsMapToolEmitPoint, QgsVertexMarker, QgsMessageBar
@@ -42,9 +43,10 @@ from .Arraymaker_dialog import ArraymakerDialog
 import os.path
 import json
 
+
 class PointTool(QgsMapToolEmitPoint):
     """ Needed to catch clicks on the map to define centre point and directions"""
-    
+
     def __init__(self, canvas):
 
         QgsMapToolEmitPoint.__init__(self, canvas)
@@ -52,159 +54,163 @@ class PointTool(QgsMapToolEmitPoint):
         self.centre = True
 
     canvasClicked = pyqtSignal('float')
-    
+
     def canvasReleaseEvent(self, event):
         # Get the click and emit a transformed point
         if self.dlg.RBpoint.isChecked():
             self.createarray(event.mapPoint())
-        elif self.dlg.RBspiral.isChecked() or self.dlg.RBspiralLog.isChecked or self.dlg.RBcircle.isChecked():
+        elif self.dlg.RBspiral.isChecked() or self.dlg.RBspiralLog.isChecked\
+                or self.dlg.RBcircle.isChecked():
             self.createspiral(event.mapPoint())
 
-        
-    def makepoint(self,x,y,name):
-        pnt=QgsPoint(x,y)
+    def makepoint(self, x, y, name):
+        pnt = QgsPoint(x, y)
         f = QgsFeature()
         f.setGeometry(pnt)
-        if self.rlayer==None:
-            height=-9999
-            res=False
+        if self.rlayer is None:
+            height = -9999
+            res = False
         else:
-            height, res = self.rlayer.dataProvider().sample(QgsPointXY(x,y),1)
+            height, res = self.rlayer.dataProvider().sample(QgsPointXY(x, y), 1)
         if math.isnan(height):
-            height=-9999
-            self.iface.messageBar().pushMessage("Arraybuilder - Warning", "Could not read value from raster layer", level=Qgis.Warning)
-            self.rlayer=None
-            res=False
-        self.lowest=min(height,self.lowest)
-        self.highest=max(height,self.highest)
-        f.setAttributes([None,height,self.version,name])
-        f=self.pvd.addFeatures([f])
+            height = -9999
+            self.iface.messageBar().pushMessage("Arraybuilder - Warning",
+                                                "Could not read value from raster layer",
+                                                level=Qgis.Warning)
+            self.rlayer = None
+            # res = False
+        self.lowest = min(height, self.lowest)
+        self.highest = max(height, self.highest)
+        f.setAttributes([None, height, self.version, name])
+        f = self.pvd.addFeatures([f])
         self.pvd.forceReload()
-        repstring="{} {} {} {}".format(name,round(x), round(y),round(height,1))
+        # TODO f-string
+        repstring = "{} {} {} {}".format(name, round(x), round(y), round(height, 1))
         self.dlg.TEReport.append(repstring)
-        return(f[1][0].id())
+        return f[1][0].id()
 
-
-    def createarray(self,pointTool):
+    def createarray(self, pointTool):
         try:
             if self.dlg.CBClickForCenter.isChecked() or not self.centre:
-                x=pointTool.x()
-                y=pointTool.y()
+                x = pointTool.x()
+                y = pointTool.y()
                 if self.centre:
                     self.dlg.SBEast.setValue(x)
                     self.dlg.SBNorth.setValue(y)
             else:
                 print("Bruker innskrevet punkt")
-                x=self.dlg.SBEast.value()
-                y=self.dlg.SBNorth.value()
-            self.report['x']=x
-            self.report['y']=y
+                x = self.dlg.SBEast.value()
+                y = self.dlg.SBNorth.value()
+            self.report['x'] = x
+            self.report['y'] = y
             # First click gives centre point
             if self.centre:
-                self.dlg.TEReport.append("Version : {}".format(self.version))
-                self.lowest=10000
-                self.highest=-10000
-                #self.version+=1
-                self.dlg.SBVersion.setValue(self.version+1)
-                if len(self.namebase)>1:
-                    name=self.namebase[:-1]+'A0'
+                self.dlg.TEReport.append(f"Version : {self.version}")
+                self.lowest = 10000
+                self.highest = -10000
+                # self.version+=1
+                self.dlg.SBVersion.setValue(self.version + 1)
+                if len(self.namebase) > 1:
+                    # TODO: Check if this is correct, do I look for an array?
+                    name = f'{self.namebase[:-1]}A0'
                 else:
-                    name=self.namebase+'A0'
-                if self.workinglayer.selectedFeatureCount()==1:
-                    x=self.workinglayer.selectedFeatures()[0].geometry().asPoint()[0]
-                    y=self.workinglayer.selectedFeatures()[0].geometry().asPoint()[1]
+                    name = f'{self.namebase}A0'
+                if self.workinglayer.selectedFeatureCount() == 1:
+                    x = self.workinglayer.selectedFeatures()[0].geometry().asPoint()[0]
+                    y = self.workinglayer.selectedFeatures()[0].geometry().asPoint()[1]
                 else:
-                    self.ids.append(self.makepoint(x,y,name))
-                self.cx=x
-                self.cy=y
-                self.centre=False
-                self.iface.messageBar().pushMessage("Arraybuilder", "Click in the direction of the first circle element", level=Qgis.Info,duration=3)
+                    self.ids.append(self.makepoint(x, y, name))
+                self.cx = x
+                self.cy = y
+                self.centre = False
+                self.iface.messageBar().pushMessage("Arraybuilder",
+                                                    "Click in the direction of the first circle element",
+                                                    level=Qgis.Info, duration=3)
             else:
                 # After the secound click to give direction
-                dx=x-self.cx
-                dy=y-self.cy
-                if dy!=0:
-                    rads=math.atan(dx/dy)
+                dx = x - self.cx
+                dy = y - self.cy
+                if dy != 0:
+                    rads = math.atan(dx / dy)
                 else:
-                    rads=0
-                direction="Direction first point, {} degrees".format(round(math.degrees(rads),1))
-                distance=math.sqrt(dx**2+dy**2)
+                    rads = 0
+                direction = f"Direction first point, {round(math.degrees(rads), 1)} degrees"
+                distance = math.sqrt(dx ** 2 + dy ** 2)
                 # Next time, will select centre element
-                self.centre=True
-                factor=self.radius/distance
-                relx=factor*dx
-                rely=factor*dy
-                x=self.cx+relx
-                y=self.cy+rely
-                name=self.namebase+'0'
-                self.ids.append(self.makepoint(x,y,name))
-                ddeg=self.ddeg
-                for i in range(1,self.npoints):
-                    tx=math.cos(ddeg)*relx-math.sin(ddeg)*rely
-                    ty=math.sin(ddeg)*relx+math.cos(ddeg)*rely
-                    relx=tx
-                    rely=ty
-                    name=self.namebase+'{}'.format(i)
-                    self.ids.append(self.makepoint(self.cx+relx,self.cy+rely,name))
+                self.centre = True
+                factor = self.radius / distance
+                relx = factor * dx
+                rely = factor * dy
+                x = self.cx + relx
+                y = self.cy + rely
+                name = f"{self.namebase}0"
+                self.ids.append(self.makepoint(x, y, name))
+                ddeg = self.ddeg
+                for i in range(1, self.npoints):
+                    tx = math.cos(ddeg) * relx - math.sin(ddeg) * rely
+                    ty = math.sin(ddeg) * relx + math.cos(ddeg) * rely
+                    relx = tx
+                    rely = ty
+                    name = f"{self.namebase}{i}"
+                    self.ids.append(self.makepoint(self.cx + relx, self.cy + rely, name))
                 print(self.ids)
                 self.workinglayer.removeSelection()
                 self.workinglayer.select(self.ids)
-                self.dlg.TEReport.append("Highest : {}".format(round(self.highest,1)))
-                self.dlg.TEReport.append("Lowest  : {}".format(round(self.lowest,1)))
-                self.dlg.TEReport.append("Range   : {}".format(round(self.highest-self.lowest,1)))
+                self.dlg.TEReport.append(f"Highest : {round(self.highest, 1)}")
+                self.dlg.TEReport.append(f"Lowest  : {round(self.lowest, 1)}")
+                self.dlg.TEReport.append(f"Range   : {round(self.highest-self.lowest, 1)}")
                 self.dlg.TEReport.append(direction)
-                self.canvasClicked.emit(round(self.highest-self.lowest,1))    
+                self.canvasClicked.emit(round(self.highest - self.lowest, 1))
         except AttributeError as e:
             print(e)
             print("Nothing so far")
             pass
         except ZeroDivisionError:
-            self.iface.messageBar().pushMessage("Arraybuilder", "Division by zero. Start over", level=Qgis.Critical,duration=5)
-            self.centre=True
+            self.iface.messageBar().pushMessage("Arraybuilder", "Division by zero. Start over",
+                                                level=Qgis.Critical, duration=5)
+            self.centre = True
         self.cleanupmarkers()
 
-    def createspiral(self,pointTool):
+    def createspiral(self, pointTool):
         """ Creates anconfiguration of spiral arms or circle arc arms """
         if self.dlg.CBClickForCenter.isChecked():
-            startx=int(pointTool.x())
-            starty=int(pointTool.y())
+            startx = int(pointTool.x())
+            starty = int(pointTool.y())
             print(startx)
             self.dlg.SBEast.setValue(startx)
             print(starty)
             self.dlg.SBNorth.setValue(starty)
         else:
-            print("Bruker innskrevet punkt")
-            startx=self.dlg.SBEast.value()
-            starty=self.dlg.SBNorth.value()
-        self.report['x']=startx
-        self.report['y']=starty
+            startx = self.dlg.SBEast.value()
+            starty = self.dlg.SBNorth.value()
+        self.report['x'] = startx
+        self.report['y'] = starty
         if self.dlg.RBspiralLog.isChecked():
-            coords=self.logspiralarm()
-            self.report['type']='Log spiral'
+            coords = self.logspiralarm()
+            self.report['type'] = 'Log spiral'
         elif self.dlg.RBspiral.isChecked():
-            coords=self.linspiralarm()
-            self.report['type']='Spiral'
+            coords = self.linspiralarm()
+            self.report['type'] = 'Spiral'
         elif self.dlg.RBcircle.isChecked():
             coords = self.circlearm()
-            self.report['type']='Circle'
+            self.report['type'] = 'Circle'
         print(self.report)
-        origin=coords[-1]
-        self.report['npoints']=self.npoints
-        for arm in range(0,self.npoints):
-            alpha = arm*2*math.pi/self.npoints
-            newcoords = self.rotatecoords(coords,origin,alpha,[startx,starty])
+        origin = coords[-1]
+        self.report['npoints'] = self.npoints
+        for arm in range(0, self.npoints):
+            alpha = arm * 2 * math.pi / self.npoints
+            newcoords = self.rotatecoords(coords, origin, alpha, [startx, starty])
             seg = QgsFeature()
             print(f"n:{self.workinglayer.featureCount()}")
-            if self.workinglayer.featureCount()==0:
+            if self.workinglayer.featureCount() == 0:
                 id = 1
-                # elif workinglayer.featureCount()>0: Is it needed to handle -1, ie, problems?
             else:
                 idx = self.workinglayer.fields().indexFromName('id')
                 id = self.workinglayer.maximumValue(idx)
                 try:
-                    id = 1 if id is None else id+1
-                except TypeError: 
-                    try:# id may come as a QVariant
+                    id = 1 if id is None else id + 1
+                except TypeError:
+                    try:  # id may come as a QVariant
                         print(id.type())
                         print(id.value())
                         id = 1 if id is None else int(id.value())+1
@@ -212,9 +218,10 @@ class PointTool(QgsMapToolEmitPoint):
                         id = 1
             if self.dlg.SBsetId.value() > id:
                 id = self.dlg.SBsetId.value()
-            seg.setAttributes([id,None,self.version,f"{self.namebase}{arm}",json.dumps(self.report)])
+            seg.setAttributes([id, None, self.version, f"{self. namebase}{arm}",
+                               json.dumps(self.report)])
             seg.setGeometry(QgsGeometry.fromPolylineXY(newcoords))
-            f=self.pvd.addFeatures( [ seg ] )
+            f = self.pvd.addFeatures([seg])
             self.ids.append(f[1][0].id())
         # update extent of the layer (not necessary)
         self.workinglayer.removeSelection()
@@ -222,131 +229,128 @@ class PointTool(QgsMapToolEmitPoint):
         self.workinglayer.updateExtents()
         self.cleanupmarkers()
         self.workinglayer.select(self.ids)
-        self.dlg.SBVersion.setValue(self.version+1)
-        self.ids=[]
+        self.dlg.SBVersion.setValue(self.version + 1)
+        self.ids = []
         print("cleanedup")
-    
-    def rotatecoords(self,coords,origin,alpha,startpoint=[0,0],asQgspoint=True):
-        newpoints=[]
+
+    def rotatecoords(self, coords, origin, alpha, startpoint=[0, 0], asQgspoint=True):
+        newpoints = []
         for point in coords:
-            E = point[0]-origin[0]
-            N = point[1]-origin[1]
-            x = math.sin(alpha) * E + math.cos(alpha)*N+startpoint[0];
-            y = math.cos(alpha) * E - math.sin(alpha)*N+startpoint[1];
+            E = point[0] - origin[0]
+            N = point[1] - origin[1]
+            x = math.sin(alpha) * E + math.cos(alpha) * N + startpoint[0]
+            y = math.cos(alpha) * E - math.sin(alpha) * N + startpoint[1]
             if asQgspoint:
-                newpoint=QgsPointXY(x,y)
+                newpoint = QgsPointXY(x, y)
             else:
-                newpoint=[x,y]
+                newpoint = [x, y]
             newpoints.append(newpoint)
-        return(newpoints)
-    
+        return newpoints
+
     def cleanupmarkers(self):
-        vertex_items = [ i for i in self.iface.mapCanvas().scene().items() if issubclass(type(i), QgsVertexMarker)]
+        vertex_items = [i for i in self.iface.mapCanvas().scene().items()
+                        if issubclass(type(i), QgsVertexMarker)]
         for v in vertex_items:
-            if v.data(1)=='Startmarker':
+            if v.data(1) == 'Startmarker':
                 self.iface.mapCanvas().scene().removeItem(v)
-    
+
     def circlearm(self):
         rotdir = 1 if self.dlg.CBccw.isChecked() else -1
-        firstarm=[]
-        length=self.radius
-        degrees=self.dlg.SBdegrees.value()
-        self.report['arcdegrees']=degrees
-        rads=degrees/180*math.pi
-        circrad=length*math.sin((math.pi-rads)/2)/math.sin(rads)
-        # The radius of the circle that has a secant of length "length" over the angle degrees        
-        segmentlength=10 # How long segments in the arc
-        arclength=rads*circrad
-        nsteps=arclength/segmentlength
-        step=rads/nsteps
-        rad=0
-        while rad<=rads:
-            e=math.cos(rad)*circrad*rotdir
-            n=math.sin(rad)*circrad
-            firstarm.append([e,n])
-            rad+=step
+        firstarm = []
+        length = self.radius
+        degrees = self.dlg.SBdegrees.value()
+        self.report['arcdegrees'] = degrees
+        rads = degrees / 180 * math.pi
+        circrad = length * math.sin((math.pi - rads) / 2) / math.sin(rads)
+        # The radius of the circle that has a secant of length "length" over the angle degrees
+        segmentlength = 10  # How long segments in the arc
+        arclength = rads * circrad
+        nsteps = arclength / segmentlength
+        step = rads / nsteps
+        rad = 0
+        while rad <= rads:
+            e = math.cos(rad) * circrad * rotdir
+            n = math.sin(rad) * circrad
+            firstarm.append([e, n])
+            rad += step
         start = firstarm[0]
         end = firstarm[-1]
-        dx=start[0]-end[0]
-        dy=start[1]-end[1]
-        if dy!=0:
-            direction=math.atan(dx/dy)
+        dx = start[0] - end[0]
+        dy = start[1] - end[1]
+        if dy != 0:
+            direction = math.atan(dx / dy)
         else:
-            direction=0
+            direction = 0
         print(f"direction:{direction}")
-        targetdirection=self.dlg.SBRotation.value()
-        self.report['targetdirection']=targetdirection
-        targetdirection=targetdirection*math.pi/180
+        targetdirection = self.dlg.SBRotation.value()
+        self.report['targetdirection'] = targetdirection
+        targetdirection = targetdirection * math.pi / 180
         print(f"target:{targetdirection}")
-        rotation=targetdirection-direction+math.pi
+        rotation = targetdirection - direction + math.pi
         print(f"rotation:{rotation}")
-        firstarm=self.rotatecoords(firstarm,[0,0],rotation*-1,[0,0],False)
-        return(firstarm)
-    
+        firstarm = self.rotatecoords(firstarm, [0, 0], rotation * -1, [0, 0], False)
+        return firstarm
+
     def linspiralarm(self):
         coords = []
-        coils  = 1.1
-        chord  = 1
+        coils = 1.1
+        chord = 1
         rotdir = 1 if self.dlg.CBccw.isChecked() else -1
         rotation = self.dlg.SBRotation.value()
-        self.report['rotation']=rotation
-        maxR   = self.radius/8*5 # The radius is the max radius of the spiral. I want the longest distance 
-        thetaMax = coils * 2 * math.pi # // value of theta corresponding to end of last coil
-        awayStep = maxR / thetaMax # // How far to step away from center for each side.
-        
+        self.report['rotation'] = rotation
+        maxR = self.radius / 8 * 5      # The radius is the max radius of the spiral. I want the longest distance
+        thetaMax = coils * 2 * math.pi  # value of theta corresponding to end of last coil
+        awayStep = maxR / thetaMax      # How far to step away from center for each side.
+
         # // For every side, step around and away from center.
         # // start at the angle corresponding to a distance of chord
         # // away from centre.
-        
+
         theta = (chord / awayStep)
         while theta <= thetaMax:
-            away   = awayStep * theta; # How far away from center
-            around = theta + rotation; # How far around the center
-            E=math.cos(around*rotdir)*away
-            N=math.sin(around*rotdir)*away
+            away = awayStep * theta  # How far away from center
+            around = theta + rotation  # How far around the center
+            E = math.cos(around * rotdir) * away
+            N = math.sin(around * rotdir) * away
             theta = theta + chord/away
-            coords.append([E,N])
-        coords.pop(0) # For some reason it ends up with a long jump from 0 to 1
-        return(coords)
-        
-        
+            coords.append([E, N])
+        coords.pop(0)  # For some reason it ends up with a long jump from 0 to 1
+        return coords
+
     def logspiralarm(self):
         coords = []
-        a = self.dlg.SBaVal.value() # default 1.1
-        b = self.dlg.SBbVal.value() # Default 0.5
-        coils  = 1.1
-        chord  = 1
+        a = self.dlg.SBaVal.value()  # default 1.1
+        b = self.dlg.SBbVal.value()  # Default 0.5
+        # TODO: Leftover from copy of other function?
+        # coils = 1.1
+        # chord = 1
         rotation = self.dlg.SBRotation.value()
         rotdir = 1 if self.dlg.CBccw.isChecked() else -1
-        maxR   = self.radius * 50 / 28 # Want to set longest distance
+        maxR = self.radius * 50 / 28  # Want to set longest distance
         dX = 5
         stop = 20001
-        Espan = [10^19,-10^19]
+        Espan = [10 ^ 19, -10 ^ 19]
         Nspan = Espan
-        for s in range(dX,stop,dX) :
-            theta = math.log(s*b/(a*math.sqrt(1-b**2)))/b
-            around=theta+rotation
-            E = a * math.cos(around * rotdir)*math.exp(b*theta)
-            N = a * math.sin(around * rotdir)*math.exp(b*theta)
-            Espan[0] = min(E,Espan[0])
-            Espan[1] = max(E,Espan[1])
-            Nspan[0] = min(N,Nspan[0])
-            Nspan[1] = max(N,Nspan[1])
-            r=math.sqrt((Espan[1]-Espan[0])**2+(Nspan[1]-Nspan[0])**2)
+        for s in range(dX, stop, dX):
+            theta = math.log(s * b / (a * math.sqrt(1 - b ** 2))) / b
+            around = theta + rotation
+            E = a * math.cos(around * rotdir) * math.exp(b * theta)
+            N = a * math.sin(around * rotdir) * math.exp(b * theta)
+            Espan[0] = min(E, Espan[0])
+            Espan[1] = max(E, Espan[1])
+            Nspan[0] = min(N, Nspan[0])
+            Nspan[1] = max(N, Nspan[1])
+            r = math.sqrt((Espan[1] - Espan[0]) ** 2 + (Nspan[1] - Nspan[0]) ** 2)
             if r > maxR:
-                #print(Espan)
-                #print(Nspan)
                 break
-            coords.append([E,N])
-        return(coords)
-    
-
+            coords.append([E, N])
+        return coords
 
 
 class Arraymaker:
     """QGIS Plugin Implementation."""
     # TODO: Set up to type in centre coordinates and direction
-    
+
     def __init__(self, iface):
         """Constructor.
 
@@ -394,18 +398,16 @@ class Arraymaker:
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('Arraymaker', message)
 
-
-    def add_action(
-        self,
-        icon_path,
-        text,
-        callback,
-        enabled_flag=True,
-        add_to_menu=True,
-        add_to_toolbar=False,
-        status_tip="To create a regular circle pattern e.g. for an array",
-        whats_this="To create a regular circle pattern e.g. for an array",
-        parent=None):
+    def add_action(self,
+                   icon_path,
+                   text,
+                   callback,
+                   enabled_flag=True,
+                   add_to_menu=True,
+                   add_to_toolbar=False,
+                   status_tip="To create a regular circle pattern e.g. for an array",
+                   whats_this="To create a regular circle pattern e.g. for an array",
+                   parent=None):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -444,44 +446,29 @@ class Arraymaker:
             added to self.actions list.
         :rtype: QAction
         """
-
         icon = QIcon(icon_path)
         action = QAction(icon, text, parent)
         action.triggered.connect(callback)
         action.setEnabled(enabled_flag)
-
         if status_tip is not None:
             action.setStatusTip(status_tip)
-
         if whats_this is not None:
             action.setWhatsThis(whats_this)
-
         if add_to_toolbar:
             # Adds plugin icon to Plugins toolbar
             self.iface.addToolBarIcon(action)
-
         if add_to_menu:
-            self.iface.addPluginToVectorMenu(
-                self.menu,
-                action)
-
+            self.iface.addPluginToVectorMenu(self.menu, action)
         self.actions.append(action)
-
         return action
 
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
-
         icon_path = ':/plugins/Arraymaker/icon.png'
-        self.add_action(
-            icon_path,
-            text=self.tr(u'Arraybuilder'),
-            callback=self.run,
-            parent=self.iface.mainWindow())
-
+        self.add_action(icon_path, text=self.tr(u'Arraybuilder'),
+                        callback=self.run, parent=self.iface.mainWindow())
         # will be set False in run()
         self.first_start = True
-
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -490,18 +477,14 @@ class Arraymaker:
                 self.tr(u'&Arraymaker'),
                 action)
             self.iface.removeToolBarIcon(action)
-    
-    
-
-
 
     def run(self):
         """Run method that performs all the real work"""
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
-        if self.first_start == True:
+        if self.first_start:
             self.first_start = False
-            self.report={}
+            self.report = {}
             self.dlg = ArraymakerDialog(parent=self.iface.mainWindow())
             self.dlg.MLWork.setFilters(QgsMapLayerProxyModel.PointLayer)
             self.dlg.MLValue.setFilters(QgsMapLayerProxyModel.RasterLayer)
@@ -514,28 +497,26 @@ class Arraymaker:
             self.dlg.RBspiral.clicked.connect(self.linelayers)
             self.dlg.RBspiralLog.clicked.connect(self.linelayers)
             # show the dialog
-            extent = self.iface.mapCanvas().extent() 
+            extent = self.iface.mapCanvas().extent()
             center = self.iface.mapCanvas().center()
             print(extent)
             print(center)
-            self.dlg.SBNorth.setValue(int(center.y()+0.5))
+            self.dlg.SBNorth.setValue(int(center.y() + 0.5))
             self.dlg.SBNorth.setMaximum(int(extent.yMaximum()))
             self.dlg.SBNorth.setMinimum(int(extent.yMinimum()))
-            self.dlg.SBEast.setValue(int(center.x()+0.5))
+            self.dlg.SBEast.setValue(int(center.x() + 0.5))
             self.dlg.SBEast.setMaximum(int(extent.xMaximum()))
             self.dlg.SBEast.setMinimum(int(extent.xMinimum()))
         self.dlg.open()
-     
+
     def pointlayers(self):
-       self.dlg.MLWork.setFilters(QgsMapLayerProxyModel.PointLayer)
-            
-        
+        self.dlg.MLWork.setFilters(QgsMapLayerProxyModel.PointLayer)
+
     def linelayers(self):
         self.dlg.MLWork.setFilters(QgsMapLayerProxyModel.LineLayer)
-            
-    
+
     def createlayer(self):
-                
+
         # create layer
         if self.dlg.RBpoint.isChecked():
             vl = QgsVectorLayer("Point", "temporary_array", "memory")
@@ -543,7 +524,7 @@ class Arraymaker:
             vl = QgsVectorLayer("LineString", "temporary_array", "memory")
         pr = vl.dataProvider()
         # Set projection for layer as the project projection
-        crs=QgsProject.instance().crs()
+        crs = QgsProject.instance().crs()
         vl.setCrs(crs)
         # add fields
         pr.addAttributes([
@@ -553,80 +534,79 @@ class Arraymaker:
             QgsField("name", QVariant.String),
             QgsField("report", QVariant.String)
             ])
-        vl.updateFields() # tell the vector layer to fetch changes from the provider
+        vl.updateFields()  # tell the vector layer to fetch changes from the provider
         QgsProject.instance().addMapLayer(vl)
         self.dlg.MLWork.setLayer(vl)
-     
+
     def startarray(self):
         self.last_maptool = self.iface.mapCanvas().mapTool()
         self.dlg.hide()
-        self.report['timestamp']=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.report['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.point_tool = PointTool(self.iface.mapCanvas())
         self.point_tool.rlayer = self.dlg.MLValue.currentLayer()
-        self.workinglayer=self.dlg.MLWork.currentLayer()
-        if self.workinglayer==None:
-             self.iface.messageBar().pushMessage("Arraybuilder", "Select a (New) work layer", level=Qgis.Critical,duration=5)
-             return(False)
-        self.point_tool.workinglayer=self.workinglayer
-        self.layername=self.workinglayer.name()
-        if self.point_tool.rlayer == None:
-            self.rastername=None
+        self.workinglayer = self.dlg.MLWork.currentLayer()
+        if self.workinglayer is None:
+            self.iface.messageBar().pushMessage("Arraybuilder", "Select a (New) work layer",
+                                                level=Qgis.Critical, duration=5)
+            return False
+        self.point_tool.workinglayer = self.workinglayer
+        self.layername = self.workinglayer.name()
+        if self.point_tool.rlayer is None:
+            self.rastername = None
         else:
-            self.rastername=self.point_tool.rlayer.name()
+            self.rastername = self.point_tool.rlayer.name()
         # Todo - clean up initialization
-        self.point_tool.namebase=self.dlg.LENameBase.text()
-        self.point_tool.radius=self.dlg.SBRadius.value()
-        self.report['radius']=self.dlg.SBRadius.value()
-        self.point_tool.npoints=self.dlg.SBNpoints.value()
-        self.report['npoints']=self.dlg.SBNpoints.value()
-        self.point_tool.ddeg=math.pi*2/self.point_tool.npoints
+        self.point_tool.namebase = self.dlg.LENameBase.text()
+        self.point_tool.radius = self.dlg.SBRadius.value()
+        self.report['radius'] = self.dlg.SBRadius.value()
+        self.point_tool.npoints = self.dlg.SBNpoints.value()
+        self.report['npoints'] = self.dlg.SBNpoints.value()
+        self.point_tool.ddeg = math.pi * 2 / self.point_tool.npoints
         self.point_tool.dlg = self.dlg
-        self.point_tool.iface=self.iface
-        self.point_tool.version=self.dlg.SBVersion.value()
-        self.point_tool.centre=True # Starting up
-        self.point_tool.pvd=self.workinglayer.dataProvider()
-        self.point_tool.ids=[]
-        self.point_tool.report=self.report
+        self.point_tool.iface = self.iface
+        self.point_tool.version = self.dlg.SBVersion.value()
+        self.point_tool.centre = True  # Starting up
+        self.point_tool.pvd = self.workinglayer.dataProvider()
+        self.point_tool.ids = []
+        self.point_tool.report = self.report
         self.dlg.TEReport.clear()
-        self.dlg.TEReport.append("Storing to  {}".format(self.layername))
-        if not self.dlg.RBline.isChecked() or self.rastername==None:
+        self.dlg.TEReport.append(f"Storing to  {self.layername}")
+        if not self.dlg.RBline.isChecked() or self.rastername is None:
             self.dlg.TEReport.append("Not reading values")
         else:
-            self.dlg.TEReport.append("Reading values from {}".format(self.rastername))
+            self.dlg.TEReport.append(f"Reading values from {self.rastername}")
         self.iface.mapCanvas().setMapTool(self.point_tool)
         if self.dlg.CBClickForCenter.isChecked():
-            message="Click to locate the center"
-            if self.workinglayer.selectedFeatureCount()==1:
-                message="Click in map to define array from selected point"
-            elif self.workinglayer.selectedFeatureCount()>1:
-                message="Select one point to use as senter. "+message
+            message = "Click to locate the center"
+            if self.workinglayer.selectedFeatureCount() == 1:
+                message = "Click in map to define array from selected point"
+            elif self.workinglayer.selectedFeatureCount() > 1:
+                message = "Select one point to use as senter. "+message
         else:
-            self.report['reusing xy']=True
-            marker=QgsVertexMarker(self.iface.mapCanvas())
-            message="Click in map to confirm centre point"
-            xy=QgsPointXY(self.dlg.SBEast.value(),self.dlg.SBNorth.value())
+            self.report['reusing xy'] = True
+            marker = QgsVertexMarker(self.iface.mapCanvas())
+            message = "Click in map to confirm centre point"
+            xy = QgsPointXY(self.dlg.SBEast.value(), self.dlg.SBNorth.value())
             print(xy)
             marker.setCenter(xy)
-            marker.setColor(QColor(255,0, 0))
+            marker.setColor(QColor(255, 0, 0))
             marker.setIconSize(15)
             marker.setIconType(QgsVertexMarker.ICON_X)
             marker.setPenWidth(3)
-            marker.setData(1,"Startmarker")
-        self.iface.messageBar().pushMessage("Arraybuilder",message , level=Qgis.Info, duration=5)
+            marker.setData(1, "Startmarker")
+        self.iface.messageBar().pushMessage("Arraybuilder", message, level=Qgis.Info, duration=5)
         self.point_tool.canvasClicked.connect(self.finishdefine)
-    
-    
-    def finishdefine(self,range):
+
+    def finishdefine(self, range):
         print("finishing")
         self.point_tool.canvasClicked.disconnect()
         self.workinglayer.updateExtents()
         self.iface.mapCanvas().setMapTool(self.last_maptool)
         self.dlg.show()
-        self.point_tool.centre=True
-    
-    def result(self,result):
-        # Do I need to do this? 
+        self.point_tool.centre = True
+
+    def result(self, result):
+        # Do I need to do this?
         # See if OK was pressed
         if result:
-           pass
-                
+            pass
