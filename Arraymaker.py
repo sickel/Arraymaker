@@ -210,6 +210,8 @@ class PointTool(QgsMapToolEmitPoint):
                         id = 1 if id is None else int(id.value())+1
                     except TypeError:
                         id = 1
+            if self.dlg.SBsetId.value() > id:
+                id = self.dlg.SBsetId.value()
             seg.setAttributes([id,None,self.version,f"{self.namebase}{arm}",json.dumps(self.report)])
             seg.setGeometry(QgsGeometry.fromPolylineXY(newcoords))
             f=self.pvd.addFeatures( [ seg ] )
