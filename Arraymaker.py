@@ -84,8 +84,7 @@ class PointTool(QgsMapToolEmitPoint):
         f.setAttributes([None, height, self.version, name])
         f = self.pvd.addFeatures([f])
         self.pvd.forceReload()
-        # TODO f-string
-        repstring = "{} {} {} {}".format(name, round(x), round(y), round(height, 1))
+        repstring = f"{name} {round(x)} {round(y)} {round(height, 1})"
         self.dlg.TEReport.append(repstring)
         return f[1][0].id()
 
@@ -312,7 +311,7 @@ class PointTool(QgsMapToolEmitPoint):
             around = theta + rotation  # How far around the center
             E = math.cos(around * rotdir) * away
             N = math.sin(around * rotdir) * away
-            theta = theta + chord/away
+            theta = theta + chord / away
             coords.append([E, N])
         coords.pop(0)  # For some reason it ends up with a long jump from 0 to 1
         return coords
@@ -368,7 +367,7 @@ class Arraymaker:
         locale_path = os.path.join(
             self.plugin_dir,
             'i18n',
-            'Arraymaker_{}.qm'.format(locale))
+            f'Arraymaker_{locale}.qm'
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -581,7 +580,7 @@ class Arraymaker:
             if self.workinglayer.selectedFeatureCount() == 1:
                 message = "Click in map to define array from selected point"
             elif self.workinglayer.selectedFeatureCount() > 1:
-                message = "Select one point to use as senter. "+message
+                message = f"Select one point to use as senter. {message}"
         else:
             self.report['reusing xy'] = True
             marker = QgsVertexMarker(self.iface.mapCanvas())
