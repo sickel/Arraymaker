@@ -95,8 +95,8 @@ class PointTool(QgsMapToolEmitPoint):
                 x = pointTool.x()
                 y = pointTool.y()
                 if self.centre:
-                    self.dlg.SBEast.setValue(x)
-                    self.dlg.SBNorth.setValue(y)
+                    self.dlg.SBEast.setValue(int(x))
+                    self.dlg.SBNorth.setValue(int(y))
             else:
                 print("Bruker innskrevet punkt")
                 x = self.dlg.SBEast.value()
