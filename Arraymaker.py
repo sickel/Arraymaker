@@ -23,9 +23,9 @@
 https://gis-ops.com/qgis-3-use-interactive-mapping/
 
 """
-from PyQt5.QtCore import pyqtSignal, QVariant
-from PyQt5.QtGui import QCursor, QPixmap, QColor
-from PyQt5.QtWidgets import QApplication
+from qgis.PyQt.QtCore import pyqtSignal, QVariant
+from qgis.PyQt.QtGui import QCursor, QPixmap, QColor
+from qgis.PyQt.QtWidgets import QApplication
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
